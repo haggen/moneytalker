@@ -1,5 +1,5 @@
-import { createRoot } from 'react-dom';
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { createRoot } from "react-dom";
+import { StrictMode, useCallback, useEffect, useReducer, useRef } from "react";
 
 function useLiveRef(value) {
   const valueRef = useRef(value);
@@ -11,12 +11,15 @@ function useLiveRef(value) {
 
 function useIsMounted() {
   const isMounted = useRef(false);
+
   useEffect(() => {
     isMounted.current = true;
+
     return () => {
       isMounted.current = false;
     };
   }, []);
+
   return useCallback(() => isMounted.current, []);
 }
 
@@ -24,6 +27,7 @@ function useInterval(callback, interval) {
   const isMounted = useIsMounted();
   const callbackRef = useLiveRef(callback);
   const intervalRef = useRef();
+
   useEffect(() => {
     if (intervalRef.current) {
       return;
@@ -34,6 +38,7 @@ function useInterval(callback, interval) {
         clearInterval(intervalRef.current);
         return;
       }
+
       callbackRef.current();
     }, interval);
   });
@@ -42,45 +47,75 @@ function useInterval(callback, interval) {
 const costs = {
   ad: 100,
   hire: 1000,
-  franchise: 10000,
-  investment: 100000,
-  merger: 1000000,
+  franchise: 10_000,
+  investment: 100_000,
+  offshore: 1_000_000,
+  merger: 10_000_000,
 };
 
 const yields = {
   ad: 10,
   hire: 100,
   franchise: 1000,
-  investment: 10000,
-  merger: 100000,
+  investment: 10_000,
+  merger: 100_000,
 };
 
-function getYield(state) {
+function getYield(state, taxed = false) {
   return (
-    1 +
-    state.ads * yields.ad +
-    state.hired * yields.hire +
-    state.franchised * yields.franchise +
-    state.invested * yields.investment +
-    state.merged * yields.merger
+    (1 +
+      (state.ads * yields.ad +
+        state.hired * yields.hire +
+        state.franchised * yields.franchise +
+        state.invested * yields.investment +
+        state.merged * yields.merger)) *
+    (taxed ? 1 - getTax(state) : 1)
   );
 }
 
-function format(value) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value);
+function getTax(state) {
+  return (
+    (state.balance > 1_000_000 ? 0.75 : state.balance > 100_000 ? 0.5 : 0.25) *
+    Math.pow(0.99, state.offshored)
+  );
+}
+
+const currency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+const percentage = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function f(value, formatter = currency) {
+  return formatter.format(value);
+}
+
+function Heading({ type, action, balance, children, dispatch }) {
+  return (
+    <>
+      {children}
+      &mdash;
+      <button
+        onClick={() => dispatch({ type })}
+        disabled={balance < costs[type]}
+      >
+        {action} ({f(costs[type])})
+      </button>
+    </>
+  );
 }
 
 function reduce(state, action) {
-  console.log(action);
-
   switch (action.type) {
     case "load":
       return action.state;
     case "yield":
-      const balance = state.balance + getYield(state);
+      const balance = state.balance + getYield(state, true);
       return {
         ...state,
         balance,
@@ -114,6 +149,15 @@ function reduce(state, action) {
         balance: state.balance - costs.franchise,
         franchised: state.franchised + 1,
       };
+    case "offshore":
+      if (state.balance < costs.offshore) {
+        return state;
+      }
+      return {
+        ...state,
+        balance: state.balance - costs.offshore,
+        offshored: state.offshored + 1,
+      };
     case "investment":
       if (state.balance < costs.invest) {
         return state;
@@ -137,37 +181,36 @@ function reduce(state, action) {
   }
 }
 
-function Heading({ type, action, balance, children, dispatch }) {
-  return (
-    <>
-      {children}
-      &mdash;
-      <button
-        onClick={() => dispatch({ type })}
-        disabled={balance < costs[type]}
-      >
-        {action} ({format(costs[type])})
-      </button>
-    </>
-  );
+const initialState = {
+  version: 1,
+  balance: 0,
+  highestBalance: 0,
+  ads: 0,
+  hired: 0,
+  franchised: 0,
+  offshored: 0,
+  invested: 0,
+  merged: 0,
+};
+
+function getInitialState() {
+  const storedState = localStorage.getItem("state");
+  if (storedState) {
+    const savedState = JSON.parse(storedState);
+
+    if (savedState.version === undefined) {
+      savedState.offshored = initialState.offshored;
+      savedState.version = 1;
+    }
+
+    return savedState;
+  }
+
+  return { ...initialState };
 }
 
 export default function App() {
-  const [state, dispatch] = useReducer(reduce, {}, () => {
-    const state = localStorage.getItem("state");
-    if (state) {
-      return JSON.parse(state);
-    }
-    return {
-      balance: 0,
-      highestBalance: 0,
-      ads: 0,
-      hired: 0,
-      franchised: 0,
-      invested: 0,
-      merged: 0,
-    };
-  });
+  const [state, dispatch] = useReducer(reduce, {}, getInitialState);
 
   useEffect(() => {
     localStorage.setItem("state", JSON.stringify(state));
@@ -178,13 +221,18 @@ export default function App() {
   }, 1000);
 
   return (
-    <div>
+    <>
       <div style={{ float: "right" }}></div>
+
       <dl>
         <dt>Saldo</dt>
+        <dd>{f(state.balance)}</dd>
+
+        <dt>Rendimento (Imposto)</dt>
         <dd>
-          {format(state.balance)} ({format(getYield(state))})
+          {f(getYield(state))} ({f(getTax(state), percentage)})
         </dd>
+
         {state.highestBalance >= costs.ad ? (
           <>
             <dt>
@@ -200,6 +248,7 @@ export default function App() {
             <dd>{state.ads}</dd>
           </>
         ) : null}
+
         {state.highestBalance >= costs.hire ? (
           <>
             <dt>
@@ -215,6 +264,7 @@ export default function App() {
             <dd>{state.hired}</dd>
           </>
         ) : null}
+
         {state.highestBalance >= costs.franchise ? (
           <>
             <dt>
@@ -230,6 +280,7 @@ export default function App() {
             <dd>{state.franchised}</dd>
           </>
         ) : null}
+
         {state.highestBalance >= costs.investment ? (
           <>
             <dt>
@@ -245,6 +296,23 @@ export default function App() {
             <dd>{state.invested}</dd>
           </>
         ) : null}
+
+        {state.highestBalance >= costs.offshore ? (
+          <>
+            <dt>
+              <Heading
+                type="offshore"
+                action="Abrir"
+                balance={state.balance}
+                dispatch={dispatch}
+              >
+                Contas no Exterior
+              </Heading>
+            </dt>
+            <dd>{state.offshored}</dd>
+          </>
+        ) : null}
+
         {state.highestBalance >= costs.merger ? (
           <>
             <dt>
@@ -261,8 +329,12 @@ export default function App() {
           </>
         ) : null}
       </dl>
-    </div>
+    </>
   );
 }
 
-createRoot(window.root).render(<App />);
+createRoot(window.root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
