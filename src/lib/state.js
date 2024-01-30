@@ -2,6 +2,8 @@ import { useReducer, useEffect } from "react";
 import { useInterval } from "~/src/lib/useInterval";
 
 let initialState = Object.freeze({
+  /** State revision. */
+  version: 2,
   /** Seconds elapsed. */
   elapsed: 0,
   /** Scheduled actions. */
