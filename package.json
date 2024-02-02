@@ -4,17 +4,19 @@
   "description": "",
   "source": "src/index.html",
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky install",
     "start": "parcel",
     "lint": "oxlint",
+    "format": "prettier --cache .",
     "build": "parcel build"
   },
   "author": "Arthur <arthur@corenzan.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "husky": "^9.0.7",
+    "@biomejs/biome": "^1.5.3",
     "oxlint": "^0.2.6",
     "parcel": "^2.11.0",
+    "prettier": "^3.2.4",
     "process": "^0.11.10"
   },
   "dependencies": {

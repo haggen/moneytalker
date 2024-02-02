@@ -2,13 +2,13 @@ import { useEffect } from "react";
 import { Menu } from "~/src/components/Menu";
 import { currency, percentage } from "~/src/lib/formatter";
 import {
-  handleCashCharged,
-  handleCashIncome,
-  reducers,
-  setInitialState,
+    extendInitialState,
+    handleCashCharged,
+    handleEffectRegistered,
+    reducers,
 } from "~/src/lib/state";
 
-setInitialState({
+extendInitialState({
   /** Cash invested. */
   invested: 0,
 });
@@ -31,12 +31,12 @@ function handleInvestmentBought(state) {
     return state;
   }
 
-  return handleCashCharged(
+  return handleEffectRegistered(
     {
       ...state,
       invested: state.invested + price,
     },
-    price
+    price,
   );
 }
 
@@ -56,7 +56,7 @@ function handleInvestmentClaimed(state) {
     return state;
   }
 
-  return handleCashIncome({ ...state, invested: 0 }, state.invested);
+  return handleCashCharged({ ...state, invested: 0 }, state.invested);
 }
 
 function reducer(state, action) {
@@ -79,12 +79,12 @@ export function Investment({ context }) {
 
   useEffect(() => {
     dispatch({
-      type: "clock/scheduled",
+      type: "event/scheduled",
       payload: { type: "investment/interest", interval: 12 },
     });
 
     return () => {
-      dispatch({ type: "clock/cancelled", payload: "investment/interest" });
+      dispatch({ type: "event/cancelled", payload: "investment/interest" });
     };
   }, []);
 

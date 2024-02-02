@@ -1,4 +1,4 @@
-const language = navigator.language || "en-US";
+const language = "pt-BR"; //navigator.language;
 
 const currencyFormatter = new Intl.NumberFormat(language, {
   style: "decimal",
@@ -12,8 +12,8 @@ export function currency(value) {
 
 const percentageFormatter = new Intl.NumberFormat(language, {
   style: "decimal",
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 4,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 export function percentage(value) {

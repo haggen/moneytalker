@@ -1,44 +1,29 @@
-import { currency } from "~/src/lib/formatter";
 import { Debug } from "~/src/components/Debug";
 import { useGameContext } from "~/src/lib/state";
-import { Ad } from "~/src/features/Ad";
-import { Investment } from "~/src/features/Investment";
-import { useEffect } from "react";
-import { Helper } from "~/src/features/Helper";
-import { Seller } from "~/src/features/Seller";
-import { Franchise } from "~/src/features/Franchise";
+
+import { Customer } from "~/src/features/Customer";
+import { Money } from "~/src/features/Money";
+import * as classes from "./style.module.css";
 
 export function App() {
   const context = useGameContext();
 
-  useEffect(() => {
-    context.dispatch({
-      type: "clock/scheduled",
-      payload: { type: "cash/income", payload: 1, interval: 1 },
-    });
-
-    return () => {
-      context.dispatch({ type: "clock/cancelled", payload: "cash/income" });
-    };
-  }, []);
-
   return (
-    <>
-      <Debug context={context} />
+    <div className={classes.layout}>
+      <main>
+        <Debug context={context} />
 
-      <dl>
-        <dt>Saldo</dt>
-        <dd>{currency(context.state.cash)}</dd>
-
-        {/* <dt>Imposto</dt>
-        <dd>{percentage(features.tax.getTax(state))}</dd> */}
-
-        <Ad context={context} />
-        <Helper context={context} />
-        <Seller context={context} />
-        <Investment context={context} />
-        <Franchise context={context} />
-      </dl>
-    </>
+        <dl>
+          <Money context={context} />
+          <Customer context={context} />
+        </dl>
+      </main>
+      <footer>
+        <nav>
+          Feito por <a href="https://twitter.com/haggen">mim</a>. Código aberto
+          no <a href="https://github.com/haggen/moneytalker">GitHub</a>.
+        </nav>
+      </footer>
+    </div>
   );
 }

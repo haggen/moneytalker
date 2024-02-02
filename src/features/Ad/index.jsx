@@ -1,29 +1,33 @@
 import { useEffect } from "react";
-import { currency } from "~/src/lib/formatter";
-import {
-  handleCashCharged,
-  handleCashIncome,
-  reducers,
-  setInitialState,
-} from "~/src/lib/state";
+import { Help } from "~/src/components/Help";
+import { currency, percentage } from "~/src/lib/formatter";
+import { extendInitialState, reducers } from "~/src/lib/state";
 
-setInitialState({
+const { random } = Math;
+
+extendInitialState({
   /** Ads contracted. */
   ads: 0,
 });
 
-export function getAdPrice() {
-  return 12;
+function getAdPrice() {
+  return 10;
 }
 
-export function getAdIncome(state) {
-  const price = getAdPrice();
+function getAdOdds() {
+  return 0.1;
+}
 
+function getAdAudience(state) {
+  return Math.round(random() * state.ads);
+}
+
+function getAdResult(state) {
   if (state.ads === 0) {
     return 0;
   }
 
-  return 1 + price * Math.log1p(0.1 * state.ads);
+  return Math.floor(getAdOdds(state) * getAdAudience(state));
 }
 
 function handleAdBought(state) {
@@ -33,31 +37,31 @@ function handleAdBought(state) {
     return state;
   }
 
-  return handleCashCharged(
-    {
-      ...state,
-      ads: state.ads + 1,
-    },
-    price
-  );
+  return {
+    ...state,
+    ads: state.ads + 1,
+  };
 }
 
-function handleAdIncome(state) {
-  const income = getAdIncome(state);
+function handleAdRolled(state) {
+  const converted = getAdResult(state);
 
-  if (income === 0) {
+  if (converted === 0) {
     return state;
   }
 
-  return handleCashIncome(state, income);
+  return {
+    ...state,
+    customers: state.customers + converted,
+  };
 }
 
 function reducer(state, action) {
   switch (action.type) {
     case "ad/bought":
       return handleAdBought(state, action.payload);
-    case "ad/income":
-      return handleAdIncome(state);
+    case "ad/rolled":
+      return handleAdRolled(state);
     default:
       return state;
   }
@@ -70,23 +74,19 @@ export function Ad({ context }) {
 
   useEffect(() => {
     dispatch({
-      type: "clock/scheduled",
-      payload: { type: "ad/income", interval: 1 },
+      type: "event/scheduled",
+      payload: { type: "ad/rolled", interval: 1 },
     });
 
     return () => {
-      dispatch({ type: "clock/cancelled", payload: "ad/income" });
+      dispatch({ type: "event/cancelled", payload: "ad/rolled" });
     };
   }, []);
-
-  if (state.earned < price) {
-    return null;
-  }
 
   return (
     <>
       <dt>
-        Anúncios &mdash;
+        Publicidade &mdash;
         <button
           onClick={() => dispatch({ type: "ad/bought" })}
           disabled={state.cash < price}
@@ -95,7 +95,9 @@ export function Ad({ context }) {
         </button>
       </dt>
       <dd>
-        &times;{state.ads}&nbsp;({currency(getAdIncome(state))})
+        {state.ads}&nbsp;(
+        <Help title="Chance de conversão.">{percentage(getAdOdds(state))}</Help>
+        )
       </dd>
     </>
   );

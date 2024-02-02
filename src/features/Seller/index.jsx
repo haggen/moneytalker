@@ -1,13 +1,13 @@
 import { useEffect } from "react";
 import { currency } from "~/src/lib/formatter";
 import {
-  handleCashCharged,
-  handleCashIncome,
-  reducers,
-  setInitialState,
+    extendInitialState,
+    handleCashCharged,
+    handleEffectRegistered,
+    reducers,
 } from "~/src/lib/state";
 
-setInitialState({
+extendInitialState({
   /** Sellers hired. */
   sellers: 0,
 });
@@ -33,12 +33,12 @@ function handleSellerBought(state) {
     return state;
   }
 
-  return handleCashCharged(
+  return handleEffectRegistered(
     {
       ...state,
       sellers: state.sellers + 1,
     },
-    price
+    price,
   );
 }
 
@@ -49,7 +49,7 @@ function handleSellerIncome(state) {
     return state;
   }
 
-  return handleCashIncome(state, income);
+  return handleCashCharged(state, income);
 }
 
 function reducer(state, action) {
@@ -70,12 +70,12 @@ export function Seller({ context }) {
 
   useEffect(() => {
     dispatch({
-      type: "clock/scheduled",
+      type: "event/scheduled",
       payload: { type: "seller/income", interval: 1 },
     });
 
     return () => {
-      dispatch({ type: "clock/cancelled", payload: "seller/income" });
+      dispatch({ type: "event/cancelled", payload: "seller/income" });
     };
   }, []);
 

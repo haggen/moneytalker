@@ -1,38 +1,42 @@
-import { useReducer, useEffect } from "react";
+import { useModifier, useReducer } from "react";
 import { useInterval } from "~/src/lib/useInterval";
 
-let initialState = Object.freeze({
-  /** State revision. */
-  version: 2,
-  /** Seconds elapsed. */
-  elapsed: 0,
-  /** Scheduled actions. */
-  scheduled: [],
-  /** Cash at hand. */
-  cash: 0,
-  /** Total cash earned. */
-  earned: 0,
-});
+/**
+ * Initial state patches.
+ */
+export const initialState = [
+  Object.freeze({
+    /** State revision. */
+    version: 3,
+    /** Seconds elapsed. */
+    elapsed: 0,
+    /** Scheduled actions. */
+    scheduled: [],
+    /** Modifiers. */
+    modifiers: [],
+  }),
+];
 
-export function setInitialState(patch) {
-  initialState = Object.freeze({ ...initialState, ...patch });
+/**
+ * Build initial state.
+ */
+function getInitialState() {
+  return initialState.reduce(
+    (state, patch) => Object.freeze({ ...state, ...patch }),
+    {},
+  );
 }
 
-export function getCashCharged(state, amount) {
-  return state.cash - amount;
-}
-
+/**
+ * Handle state reset.
+ */
 function handleStateReset(state) {
-  return {
-    ...initialState,
-    scheduled: state.scheduled.map((entry) => ({ ...entry, elapsed: 0 })),
-  };
+  return getInitialState();
 }
 
-function handleStateLoaded(state, payload) {
-  return payload;
-}
-
+/**
+ * Handle clock tick.
+ */
 function handleClockTicked(state) {
   return {
     ...state,
@@ -44,103 +48,146 @@ function handleClockTicked(state) {
   };
 }
 
-function handleClockScheduled(state, entry) {
+/**
+ * Handle event scheduled.
+ */
+function handleEventScheduled(state, entry) {
   return {
     ...state,
     scheduled: [...state.scheduled, { ...entry, elapsed: 1 }],
   };
 }
 
-function handleClockCancelled(state, type) {
+/**
+ * Handle event cancelled.
+ */
+function handleEventCancelled(state, type) {
   return {
     ...state,
     scheduled: state.scheduled.filter((entry) => entry.type !== type),
   };
 }
 
-export function handleCashCharged(state, amount) {
+/**
+ * Handle modifier registered.
+ */
+function handleModifierRegistered(state, modifier) {
   return {
     ...state,
-    cash: state.cash - amount,
+    modifiers: [...state.modifiers, modifier],
   };
 }
 
-export function handleCashIncome(state, amount) {
+/**
+ * Handle modifier changed.
+ */
+function handleModifierChanged(state, modifier) {
+  const modifiers = [...state.modifiers];
+
+  for (const m of modifiers) {
+    if (m.type === modifier.type) {
+      m.fn = modifier.fn;
+    }
+  }
+
   return {
     ...state,
-    cash: state.cash + amount,
-    earned: state.earned + amount,
+    modifiers,
   };
 }
 
-function reducer(state, action) {
-  console.log(`Action dispatched`, action);
+/**
+ * Handle modifier removed.
+ */
+function handleModifierRemoved(state, type) {
+  return {
+    ...state,
+    modifiers: state.modifiers.filter((modifier) => modifier.type !== type),
+  };
+}
 
+/**
+ * Apply value modifiers.
+ */
+export function applyModifiers(modifiers, value) {
+  return modifiers.reduce((value, modifier) => {
+    if (modifier.type === value.type) {
+      return Function("state", "value", `return ${modifier.fn};`)(state, value);
+    }
+    return value;
+  }, value);
+}
+
+/**
+ * Initial reducer.
+ */
+function initialReducer(state, action) {
   switch (action.type) {
     case "state/reset":
       return handleStateReset(state);
-    case "state/loaded":
-      return handleStateLoaded(state, action.payload);
     case "clock/ticked":
       return handleClockTicked(state);
-    case "clock/scheduled":
-      return handleClockScheduled(state, action.payload);
-    case "clock/cancelled":
-      return handleClockCancelled(state, action.payload);
-    case "cash/charged":
-      return handleCashCharged(state, action.payload);
-    case "cash/income":
-      return handleCashIncome(state, action.payload);
+    case "event/scheduled":
+      return handleEventScheduled(state, action.payload);
+    case "event/cancelled":
+      return handleEventCancelled(state, action.payload);
+    case "modifier/registered":
+      return handleModifierRegistered(state, action.payload);
+    case "modifier/changed":
+      return handleModifierChanged(state, action.payload);
+    case "modifier/removed":
+      return handleModifierRemoved(state, action.payload);
     default:
       return state;
   }
 }
 
 /**
- * Reducers.
+ * Additional reducers.
  */
-export const reducers = [];
+export const reducers = new Map();
 
 /**
- * Root reducer of all reducers.
+ * Root reducer.
  */
-export function root(state, action) {
+function root(state, action) {
+  console.log(`Action dispatched`, action);
+
   return reducers.reduce(
     (state, reducer) => reducer(state, action),
-    reducer(state, action)
+    initialReducer(state, action),
   );
 }
 
 /**
  * Local storage key for saved state.
  */
-const savedStateStorageKey = "state";
+function getStoredStateKey(state) {
+  return `state-${state.version}`;
+}
 
 /**
- * Get initial game state.
+ * Load or initialize game state.
  */
-export function getInitialState() {
-  const storedState = localStorage.getItem(savedStateStorageKey);
-  if (storedState) {
-    const savedState = JSON.parse(storedState);
+function load() {
+  const initialState = getInitialState();
 
-    // @todo: We should do migrations. Meanwhile we simply reset the game.
-    if (savedState.version === initialState.version) {
-      return savedState;
-    }
+  const storedState = localStorage.getItem(getStoredStateKey(initialState));
+  if (storedState) {
+    return JSON.parse(storedState);
   }
 
-  return { ...initialState };
+  return initialState;
 }
 
 /**
  * Game state.
  */
 export function useGameContext() {
-  const [state, dispatch] = useReducer(root, {}, getInitialState);
+  const [state, dispatch] = useReducer(root, {}, load);
 
-  useEffect(() => {
-    localStorage.setItem(savedStateStorageKey, JSON.stringify(state));
+  useModifier(() => {
+    localStorage.setItem(getStoredStateKey(state), JSON.stringify(state));
   }, [state]);
 
   useInterval(() => {
@@ -148,7 +195,7 @@ export function useGameContext() {
 
     for (const entry of state.scheduled) {
       if (entry.elapsed % entry.interval === 0) {
-        dispatch({ type: entry.type, payload: entry.payload });
+        dispatch({ type: entry.type });
       }
     }
   }, 1000);
